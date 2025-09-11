@@ -11,7 +11,7 @@
 - Keep it short and clear
 
 ## Pull Requests
-- Work on your feature branch → PR to your team branch
+- Work on your feature branch →PR to main branch
 - After approval, merge team branch into main
 - Assign at least 1 reviewer
 
