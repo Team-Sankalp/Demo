@@ -4,18 +4,18 @@ from datetime import datetime
 class Subscription(db.Model):
     __tablename__ = 'subscriptions'
     
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    plan_id = db.Column(db.Integer, db.ForeignKey('plans.id'), nullable=False)
-    status = db.Column(db.Enum('active', 'cancelled', 'expired', name='subscription_status'), nullable=False)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    plan_id = db.Column(db.Integer, db.ForeignKey('plans.id', ondelete='CASCADE'), nullable=False)
+    status = db.Column(db.Enum('active', 'expired', 'cancelled', 'paused', name='subscription_status'), nullable=False)
     start_date = db.Column(db.Date, nullable=False)
-    end_date = db.Column(db.Date)
+    end_date = db.Column(db.Date, nullable=True)
     price_paid = db.Column(db.Numeric(10, 2), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=True)
+    updated_at = db.Column(db.DateTime, nullable=True)
     
     # Relationships
-    usage_records = db.relationship('Usage', backref='subscription', lazy=True)
+    # Note: Usage is linked to users directly, not subscriptions
     
     def to_dict(self):
         return {

@@ -4,18 +4,17 @@ from datetime import datetime
 class Plan(db.Model):
     __tablename__ = 'plans'
     
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text)
+    description = db.Column(db.Text, nullable=True)
     monthly_price = db.Column(db.Numeric(10, 2), nullable=False)
     monthly_quota_gb = db.Column(db.Integer, nullable=False)
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_active = db.Column(db.Boolean, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=True)
+    updated_at = db.Column(db.DateTime, nullable=True)
     
     # Relationships
-    subscriptions = db.relationship('Subscription', backref='plan', lazy=True)
-    discounts = db.relationship('Discount', backref='plan', lazy=True)
+    subscriptions = db.relationship('Subscription', backref='plan', lazy=True, cascade='all, delete-orphan')
     
     def to_dict(self):
         return {

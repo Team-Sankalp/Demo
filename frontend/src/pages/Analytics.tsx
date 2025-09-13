@@ -1,12 +1,94 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Users, DollarSign } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { StatCard } from '../components/Common/StatCard';
-import { mockChartData } from '../data/mockData';
+import { apiService } from '../services/api';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
 
+interface AnalyticsData {
+  user_analytics: {
+    total_users: number;
+    active_users: number;
+    new_users_this_month: number;
+    user_growth_rate: number;
+  };
+  subscription_analytics: {
+    total_subscriptions: number;
+    active_subscriptions: number;
+    cancelled_subscriptions: number;
+    conversion_rate: number;
+  };
+  revenue_analytics: {
+    total_revenue: number;
+    monthly_revenue: number;
+    average_revenue_per_user: number;
+    revenue_growth_rate: number;
+  };
+  usage_analytics: {
+    total_usage_gb: number;
+    average_usage_per_user: number;
+    usage_distribution: Array<{ range: string; count: number; percentage: number }>;
+  };
+  plan_analytics: {
+    plan_popularity: Array<{ plan_name: string; subscription_count: number; total_revenue: number }>;
+  };
+  trends: {
+    monthly_revenue_trend: Array<{ month: string; revenue: number; subscriptions: number }>;
+    monthly_subscription_trend: Array<{ month: string; revenue: number; subscriptions: number }>;
+  };
+  discount_analytics: {
+    total_discounts: number;
+    active_discounts: number;
+    used_discounts: number;
+    discount_usage_rate: number;
+  };
+}
+
 export const Analytics: React.FC = () => {
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchAnalyticsData = async () => {
+      try {
+        setLoading(true);
+        const data = await apiService.getDetailedAnalytics();
+        setAnalyticsData(data);
+      } catch (err) {
+        setError('Failed to load analytics data');
+        console.error('Analytics fetch error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAnalyticsData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-gray-600">Loading analytics...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !analyticsData) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-red-600">{error || 'Failed to load data'}</div>
+        </div>
+      </div>
+    );
+  }
+
+  const { user_analytics, subscription_analytics, revenue_analytics, usage_analytics, plan_analytics, trends, discount_analytics } = analyticsData;
+
   const churnData = [
     { month: 'Jul', rate: 3.2 },
     { month: 'Aug', rate: 4.1 },
@@ -16,24 +98,17 @@ export const Analytics: React.FC = () => {
     { month: 'Dec', rate: 4.8 }
   ];
 
-  const revenueData = [
-    { month: 'Jul', revenue: 24500, subscriptions: 820 },
-    { month: 'Aug', revenue: 26200, subscriptions: 865 },
-    { month: 'Sep', revenue: 27800, subscriptions: 890 },
-    { month: 'Oct', revenue: 29100, subscriptions: 920 },
-    { month: 'Nov', revenue: 30500, subscriptions: 945 },
-    { month: 'Dec', revenue: 28450, subscriptions: 956 }
-  ];
+  const engagementData = usage_analytics.usage_distribution.map(item => ({
+    name: item.range,
+    value: item.percentage,
+    count: item.count
+  }));
 
-  const engagementData = [
-    { name: 'High Usage', value: 45, count: 432 },
-    { name: 'Medium Usage', value: 35, count: 334 },
-    { name: 'Low Usage', value: 20, count: 190 }
-  ];
-
-  const planPerformanceData = mockChartData.topPlans.map(plan => ({
-    ...plan,
-    performance: (plan.subscribers / plan.revenue * 100).toFixed(1),
+  const planPerformanceData = plan_analytics.plan_popularity.map(plan => ({
+    name: plan.plan_name,
+    subscribers: plan.subscription_count,
+    revenue: plan.total_revenue,
+    performance: (plan.subscription_count / plan.total_revenue * 100).toFixed(1),
     churnRate: Math.random() * 10 + 2
   }));
 
@@ -47,28 +122,28 @@ export const Analytics: React.FC = () => {
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
-          title="Average Revenue Per User"
-          value="$29.75"
-          icon={DollarSign}
-          change={{ value: '8%', type: 'increase' }}
-        />
-        <StatCard
-          title="Churn Rate"
-          value="4.8%"
-          icon={TrendingDown}
-          change={{ value: '0.4%', type: 'decrease' }}
-        />
-        <StatCard
-          title="Customer Lifetime Value"
-          value="$127.50"
+          title="Total Users"
+          value={user_analytics.total_users.toLocaleString()}
           icon={Users}
-          change={{ value: '12%', type: 'increase' }}
+          change={{ value: `${user_analytics.user_growth_rate}%`, type: 'increase' }}
         />
         <StatCard
-          title="Conversion Rate"
-          value="12.3%"
+          title="Active Subscriptions"
+          value={subscription_analytics.active_subscriptions.toLocaleString()}
           icon={TrendingUp}
-          change={{ value: '2.1%', type: 'increase' }}
+          change={{ value: `${subscription_analytics.conversion_rate}%`, type: 'increase' }}
+        />
+        <StatCard
+          title="Monthly Revenue"
+          value={`$${revenue_analytics.monthly_revenue.toLocaleString()}`}
+          icon={DollarSign}
+          change={{ value: `${revenue_analytics.revenue_growth_rate}%`, type: 'increase' }}
+        />
+        <StatCard
+          title="Active Discounts"
+          value={discount_analytics.active_discounts.toString()}
+          icon={TrendingDown}
+          change={{ value: `${discount_analytics.discount_usage_rate}%`, type: 'increase' }}
         />
       </div>
 
@@ -78,7 +153,7 @@ export const Analytics: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue & Subscription Trend</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={revenueData}>
+            <AreaChart data={trends.monthly_revenue_trend}>
               <defs>
                 <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>

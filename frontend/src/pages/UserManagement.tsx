@@ -1,66 +1,120 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Filter, MoreHorizontal, Shield, ShieldOff, RotateCcw } from 'lucide-react';
-import { User } from '../types';
-import { mockUsers } from '../data/mockData';
+import { apiService } from '../services/api';
+import { useNotifications } from '../contexts/NotificationContext';
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  created_at: string;
+  updated_at: string;
+  subscriptions: Array<{
+    id: number;
+    plan_name: string;
+    status: string;
+    start_date: string;
+    end_date: string;
+    price_paid: number;
+  }>;
+  active_subscription?: {
+    id: number;
+    plan_name: string;
+    status: string;
+    start_date: string;
+    end_date: string;
+    price_paid: number;
+  };
+  total_usage_gb: number;
+  subscription_count: number;
+}
 
 export const UserManagement: React.FC = () => {
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [planFilter, setPlanFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [regionFilter, setRegionFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const { addNotification } = useNotifications();
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const data = await apiService.getDetailedUsers(1, 50, searchTerm, roleFilter);
+      setUsers(data.users);
+    } catch (err) {
+      setError('Failed to load users');
+      console.error('Users fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesPlan = planFilter === 'all' || user.plan === planFilter;
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-    const matchesRegion = regionFilter === 'all' || user.region === regionFilter;
+    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     
-    return matchesSearch && matchesPlan && matchesStatus && matchesRegion;
+    return matchesSearch && matchesRole;
   });
 
-  const handleUserAction = (userId: string, action: string) => {
-    setUsers(users.map(user => {
-      if (user.id === userId) {
-        switch (action) {
-          case 'suspend':
-            return { ...user, status: 'Suspended' as const };
-          case 'reactivate':
-            return { ...user, status: 'Active' as const };
-          case 'reset-password':
-            // In a real app, this would trigger a password reset email
-            alert('Password reset email sent to ' + user.email);
-            return user;
-          default:
-            return user;
-        }
+  const handleUserAction = async (userId: number, action: string) => {
+    const user = users.find(u => u.id === userId);
+    try {
+      switch (action) {
+        case 'delete':
+          if (window.confirm('Are you sure you want to delete this user?')) {
+            await apiService.deleteUser(userId);
+            await fetchUsers();
+            
+            // Show success notification
+            addNotification({
+              type: 'success',
+              title: 'User Deleted',
+              message: `User "${user?.name}" has been deleted successfully`,
+              duration: 5000
+            });
+          }
+          break;
+        case 'reset-password':
+          // In a real app, this would trigger a password reset email
+          addNotification({
+            type: 'info',
+            title: 'Password Reset',
+            message: `Password reset email sent to ${user?.email}`,
+            duration: 5000
+          });
+          break;
+        default:
+          break;
       }
-      return user;
-    }));
+    } catch (err) {
+      setError('Failed to perform user action');
+      addNotification({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to perform user action. Please try again.',
+        duration: 5000
+      });
+      console.error('User action error:', err);
+    }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Active': return 'bg-green-100 text-green-800';
-      case 'Suspended': return 'bg-red-100 text-red-800';
-      case 'Inactive': return 'bg-gray-100 text-gray-800';
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'admin': return 'bg-purple-100 text-purple-800';
+      case 'user': return 'bg-blue-100 text-blue-800';
+      case 'moderator': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getPlanColor = (plan: string) => {
-    switch (plan) {
-      case 'Premium': return 'bg-purple-100 text-purple-800';
-      case 'Gold': return 'bg-yellow-100 text-yellow-800';
-      case 'Silver': return 'bg-gray-100 text-gray-800';
-      case 'Bronze': return 'bg-orange-100 text-orange-800';
-      default: return 'bg-blue-100 text-blue-800';
-    }
-  };
-
-  const uniquePlans = [...new Set(users.map(user => user.plan))];
-  const uniqueRegions = [...new Set(users.map(user => user.region))];
+  const uniqueRoles = [...new Set(users.map(user => user.role))];
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -74,9 +128,16 @@ export const UserManagement: React.FC = () => {
         </button>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
       {/* Search and Filters */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -92,39 +153,13 @@ export const UserManagement: React.FC = () => {
           
           <div>
             <select
-              value={planFilter}
-              onChange={(e) => setPlanFilter(e.target.value)}
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">All Plans</option>
-              {uniquePlans.map(plan => (
-                <option key={plan} value={plan}>{plan}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Suspended">Suspended</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
-
-          <div>
-            <select
-              value={regionFilter}
-              onChange={(e) => setRegionFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Regions</option>
-              {uniqueRegions.map(region => (
-                <option key={region} value={region}>{region}</option>
+              <option value="all">All Roles</option>
+              {uniqueRoles.map(role => (
+                <option key={role} value={role}>{role}</option>
               ))}
             </select>
           </div>
@@ -132,7 +167,7 @@ export const UserManagement: React.FC = () => {
       </div>
 
       {/* User Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600">{users.length}</div>
@@ -142,124 +177,113 @@ export const UserManagement: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600">
-              {users.filter(u => u.status === 'Active').length}
+              {users.filter(u => u.role === 'user').length}
             </div>
-            <div className="text-sm text-gray-500">Active Users</div>
+            <div className="text-sm text-gray-500">Regular Users</div>
           </div>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="text-center">
-            <div className="text-2xl font-bold text-red-600">
-              {users.filter(u => u.status === 'Suspended').length}
+            <div className="text-2xl font-bold text-purple-600">
+              {users.filter(u => u.role === 'admin').length}
             </div>
-            <div className="text-sm text-gray-500">Suspended</div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-600">
-              {users.filter(u => u.status === 'Inactive').length}
-            </div>
-            <div className="text-sm text-gray-500">Inactive</div>
+            <div className="text-sm text-gray-500">Admins</div>
           </div>
         </div>
       </div>
 
-      {/* Users Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Users ({filteredUsers.length})
-          </h3>
+      {/* Loading State */}
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-gray-600">Loading users...</div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plan</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Region</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Join Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Activity</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="font-medium text-gray-900">{user.name}</div>
-                      <div className="text-sm text-gray-500">{user.email}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPlanColor(user.plan)}`}>
-                      {user.plan}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(user.status)}`}>
-                      {user.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {user.region}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {user.joinDate}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {user.lastActivity}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="relative group">
-                      <button className="p-2 hover:bg-gray-100 rounded-md">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
-                      <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
-                        <div className="py-1">
-                          {user.status === 'Active' ? (
+      ) : (
+        /* Users Table */
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Users ({filteredUsers.length})
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Active Plan</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subscriptions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredUsers.map((user) => (
+                  <tr key={user.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="font-medium text-gray-900">{user.name}</div>
+                        <div className="text-sm text-gray-500">{user.email}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleColor(user.role)}`}>
+                        {user.role}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {user.active_subscription ? (
+                        <div>
+                          <div className="font-medium">{user.active_subscription.plan_name}</div>
+                          <div className="text-xs text-gray-500">${user.active_subscription.price_paid}</div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500">No active plan</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="font-medium">{user.total_usage_gb.toFixed(1)} GB</div>
+                      <div className="text-xs text-gray-500">Total usage</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="font-medium">{user.subscription_count}</div>
+                      <div className="text-xs text-gray-500">Total subscriptions</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="relative group">
+                        <button className="p-2 hover:bg-gray-100 rounded-md">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                        <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                          <div className="py-1">
                             <button
-                              onClick={() => handleUserAction(user.id, 'suspend')}
+                              onClick={() => handleUserAction(user.id, 'reset-password')}
+                              className="flex items-center space-x-2 w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                              <span>Reset Password</span>
+                            </button>
+                            <button
+                              onClick={() => handleUserAction(user.id, 'delete')}
                               className="flex items-center space-x-2 w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                             >
                               <ShieldOff className="h-4 w-4" />
-                              <span>Suspend User</span>
+                              <span>Delete User</span>
                             </button>
-                          ) : (
-                            <button
-                              onClick={() => handleUserAction(user.id, 'reactivate')}
-                              className="flex items-center space-x-2 w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50"
-                            >
-                              <Shield className="h-4 w-4" />
-                              <span>Reactivate</span>
+                            <button className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                              View Profile
                             </button>
-                          )}
-                          <button
-                            onClick={() => handleUserAction(user.id, 'reset-password')}
-                            className="flex items-center space-x-2 w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50"
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                            <span>Reset Password</span>
-                          </button>
-                          <button className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                            View Profile
-                          </button>
-                          <button className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                            View Subscriptions
-                          </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {filteredUsers.length === 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center mt-6">

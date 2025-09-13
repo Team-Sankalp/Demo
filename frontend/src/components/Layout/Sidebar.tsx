@@ -73,28 +73,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
 
       {/* Sidebar */}
       <aside className={`
-        fixed left-0 top-0 h-full w-64 bg-gray-900 border-r border-gray-700 z-50 transform transition-transform duration-300 ease-in-out
+        fixed left-0 top-0 h-full w-64 sm:w-72 bg-gray-900 border-r border-gray-700 z-50 transform transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0
       `}>
-        <div className="flex items-center justify-between p-6 border-b border-gray-700">
-          <span className="text-lg font-semibold text-white">Admin Panel</span>
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-700">
+          <span className="text-base sm:text-lg font-semibold text-white">Admin Panel</span>
           <button
             onClick={onToggle}
-            className="lg:hidden p-1 rounded-md text-gray-400 hover:text-white hover:bg-gray-800"
+            className="lg:hidden p-1 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
 
-        <nav className="mt-6 px-3">
+        <nav className="mt-4 sm:mt-6 px-2 sm:px-3">
           <ul className="space-y-1">
             {sidebarItems.map((item) => (
               <li key={item.path}>
                 <NavLink
                   to={item.path}
                   className={({ isActive }) =>
-                    `flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    `flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                       isActive
                         ? 'bg-blue-600 text-white'
                         : 'text-gray-300 hover:text-white hover:bg-gray-800'
@@ -102,8 +101,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
                   }
                   onClick={() => window.innerWidth < 1024 && onToggle()}
                 >
-                  <item.icon className="h-5 w-5 flex-shrink-0" />
-                  <span>{item.label}</span>
+                  <item.icon className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                  <span className="truncate">{item.label}</span>
                 </NavLink>
               </li>
             ))}
